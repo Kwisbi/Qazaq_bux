@@ -27,7 +27,6 @@
             padding-bottom: 80px;
         }
 
-        /* Header */
         header {
             padding: 20px;
             background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
@@ -49,10 +48,8 @@
             color: var(--success);
         }
 
-        /* Tabs & Navigation */
         .tab-content { display: none; animation: fadeIn 0.3s ease; }
         .tab-content.active { display: block; }
-
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
         .categories { display: flex; overflow-x: auto; padding: 15px; gap: 10px; }
@@ -66,7 +63,6 @@
         }
         .cat-chip.active { background: var(--accent-color); color: #000; }
 
-        /* Tasks */
         .task-card {
             background: var(--card-bg);
             border-radius: 12px;
@@ -88,7 +84,6 @@
             cursor: pointer;
         }
 
-        /* Bottom Nav */
         .bottom-nav {
             position: fixed;
             bottom: 0; width: 100%;
@@ -103,7 +98,6 @@
         .nav-item.active { color: var(--accent-color); }
         .nav-item i { font-size: 20px; display: block; margin-bottom: 4px; }
 
-        /* Admin Styles */
         .admin-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 15px; }
         .admin-stat-card { background: var(--card-bg); padding: 15px; border-radius: 10px; border-left: 4px solid var(--danger); }
     </style>
@@ -155,7 +149,13 @@
                 <small>Комиссия (₸)</small><div id="stat-profit">0.00</div>
             </div>
         </div>
-        <button class="btn-action" style="background: var(--danger); width:100%;" onclick="alert('Выгрузка отчета...')">Скачать список выплат</button>
+        
+        <h4>Заявки на вывод (Kaspi)</h4>
+        <div id="withdrawal-requests">
+            <p style="color: var(--text-dim);">Загрузка заявок...</p>
+        </div>
+        
+        <button class="btn-action" style="background: var(--danger); width:100%; margin-top:20px;" onclick="alert('Выгрузка отчета...')">Скачать список выплат</button>
     </div>
 </div>
 
@@ -172,90 +172,6 @@
 </nav>
 
 <script>
-    async function loadAdminPanel() {
-    // 1. Считаем общее кол-во пользователей
-    const { count: userCount, error: userError } = await supabaseClient
-        .from('profiles')
-        .select('*', { count: 'exact', head: true });
-    
-    document.getElementById('stat-users').innerText = userCount || 0;
-
-    // 2. Считаем "прибыль" (например, сумма всех выполненных комиссий - логику добавим позже)
-    // Пока оставим заглушку или выведем общую сумму в системе
-    document.getElementById('stat-profit').innerText = "1,500 ₸"; // Тут будет твой расчет
-
-    // 3. Загружаем заявки на вывод (Kaspi)
-    const { data: requests, error: reqError } = await supabaseClient
-        .from('withdrawals')
-        .select(`*, profiles(username)`)
-        .eq('status', 'pending');
-
-    const container = document.getElementById('withdrawal-requests');
-    container.innerHTML = '';
-
-    if (requests && requests.length > 0) {
-        requests.forEach(req => {
-            container.innerHTML += `
-                <div style="background: var(--card-bg); padding: 15px; border-radius: 12px; margin-bottom: 12px; border: 1px solid #334155;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-weight:bold;">${req.profiles?.username || 'User'}</span>
-                        <span style="color: var(--success); font-weight:bold;">${req.amount_kzt} ₸</span>
-                    </div>
-                    <div style="background: #0f172a; padding: 8px; border-radius: 6px; margin: 10px 0; font-family: monospace; font-size: 14px; color: var(--accent-color);">
-                        ${req.phone_number}
-                    </div>
-                    <button class="btn-action" style="width:100%; background: var(--success); color: white;" 
-                            onclick="approveWithdrawal('${req.id}')">
-                        Подтвердить выплату
-                    </button>
-                </div>
-            `;
-        });
-    } else {
-        container.innerHTML = '<div style="text-align:center; padding: 20px; color: var(--text-dim);">Заявок пока нет 😎</div>';
-    }
-}
-    function switchTab(event, tabId) {
-    event.preventDefault();
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    
-    document.getElementById(tabId).classList.add('active');
-    event.currentTarget.classList.add('active');
-
-    // ЕСЛИ ПЕРЕШЛИ В АДМИНКУ - ОБНОВЛЯЕМ ДАННЫЕ
-    if (tabId === 'admin-tab') {
-        loadAdminPanel();
-    }
-}
-    async function createTask() {
-    const title = document.getElementById('task-url').value; // Пока используем ссылку как заголовок
-    const price = document.getElementById('task-price').value;
-    const url = document.getElementById('task-url').value;
-
-    if (!title || !price) {
-        alert('Заполни все поля!');
-        return;
-    }
-
-    const { data, error } = await supabaseClient
-        .from('tasks')
-        .insert([
-            { 
-                title: 'Подписка TG', 
-                category: 'Telegram', 
-                reward_kzt: parseFloat(price), 
-                link: url 
-            }
-        ]);
-
-    if (error) {
-        alert('Ошибка: ' + error.message);
-    } else {
-        alert('Задание создано!');
-        loadTasks(); // Обновляем список
-    }
-}
     // --- НАСТРОЙКИ SUPABASE ---
     const SUPABASE_URL = 'https://lorbcqgghjlubhvzivwf.supabase.co'; 
     const SUPABASE_KEY = 'sb_publishable_WnvQT4HqgYeNF4oG-m_n0g_0VhCFJjD';
@@ -264,35 +180,103 @@
     const tg = window.Telegram.WebApp;
     tg.expand();
 
+    // --- ЛОГИКА АДМИНКИ ---
+    async function loadAdminPanel() {
+        // 1. Считаем пользователей
+        const { count: userCount } = await supabaseClient
+            .from('profiles')
+            .select('*', { count: 'exact', head: true });
+        document.getElementById('stat-users').innerText = userCount || 0;
+
+        // 2. Статическая прибыль (пока так)
+        document.getElementById('stat-profit').innerText = "1,500 ₸";
+
+        // 3. Загружаем заявки
+        const { data: requests, error: reqError } = await supabaseClient
+            .from('withdrawals')
+            .select(`*, profiles(username)`)
+            .eq('status', 'pending');
+
+        const container = document.getElementById('withdrawal-requests');
+        container.innerHTML = '';
+
+        if (requests && requests.length > 0) {
+            requests.forEach(req => {
+                container.innerHTML += `
+                    <div style="background: var(--card-bg); padding: 15px; border-radius: 12px; margin-bottom: 12px; border: 1px solid #334155;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-weight:bold;">${req.profiles?.username || 'User'}</span>
+                            <span style="color: var(--success); font-weight:bold;">${req.amount_kzt} ₸</span>
+                        </div>
+                        <div style="background: #0f172a; padding: 8px; border-radius: 6px; margin: 10px 0; font-family: monospace; font-size: 14px; color: var(--accent-color);">
+                            ${req.phone_number}
+                        </div>
+                        <button class="btn-action" style="width:100%; background: var(--success); color: white;" 
+                                onclick="approveWithdrawal('${req.id}')">
+                            Подтвердить выплату
+                        </button>
+                    </div>
+                `;
+            });
+        } else {
+            container.innerHTML = '<div style="text-align:center; padding: 10px; color: var(--text-dim);">Заявок нет</div>';
+        }
+    }
+
+    async function approveWithdrawal(id) {
+        if(!confirm("Подтвердить выплату?")) return;
+        const { error } = await supabaseClient.from('withdrawals').update({ status: 'completed' }).eq('id', id);
+        if (!error) { alert("Выплачено!"); loadAdminPanel(); }
+    }
+
+    // --- ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ---
+    function switchTab(event, tabId) {
+        event.preventDefault();
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        event.currentTarget.classList.add('active');
+
+        if (tabId === 'admin-tab') {
+            loadAdminPanel();
+        }
+    }
+
+    // --- СОЗДАНИЕ ЗАДАНИЙ ---
+    async function createTask() {
+        const url = document.getElementById('task-url').value;
+        const price = document.getElementById('task-price').value;
+
+        if (!url || !price) { alert('Заполни все поля!'); return; }
+
+        const { error } = await supabaseClient.from('tasks').insert([
+            { title: 'Подписка TG', category: 'Telegram', reward_kzt: parseFloat(price), link: url }
+        ]);
+
+        if (error) { alert('Ошибка: ' + error.message); } 
+        else { alert('Задание создано!'); loadTasks(); }
+    }
+
+    // --- ИНИЦИАЛИЗАЦИЯ ---
     async function initApp() {
         const user = tg.initDataUnsafe.user;
         if (!user) {
-            document.body.innerHTML = "<h2 style='color:white; text-align:center;'>Пожалуйста, откройте через Telegram</h2>";
+            document.body.innerHTML = "<h2 style='color:white; text-align:center;'>Зайдите через Telegram</h2>";
             return;
         }
 
-        // 1. Авторизация / Регистрация
-        let { data: profile, error } = await supabaseClient
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
+        let { data: profile } = await supabaseClient.from('profiles').select('*').eq('id', user.id).single();
 
         if (!profile) {
-            const { data } = await supabaseClient
-                .from('profiles')
-                .insert([{ id: user.id, username: user.username, balance_kzt: 0 }])
-                .select().single();
+            const { data } = await supabaseClient.from('profiles').insert([{ id: user.id, username: user.username, balance_kzt: 0 }]).select().single();
             profile = data;
         }
 
-        // 2. Отображение данных
         document.getElementById('user-display-name').innerText = profile.username || user.first_name;
         document.getElementById('user-balance').innerText = profile.balance_kzt.toFixed(2);
 
         if (profile.is_admin) {
             document.getElementById('admin-nav').style.display = 'block';
-            loadAdminStats();
         }
 
         loadTasks();
@@ -317,28 +301,11 @@
                 `;
             });
         } else {
-            container.innerHTML = '<p style="text-align:center; color:var(--text-dim);">Заданий пока нет</p>';
+            container.innerHTML = '<p style="text-align:center; color:var(--text-dim);">Заданий нет</p>';
         }
     }
 
-    function switchTab(event, tabId) {
-        event.preventDefault();
-        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        document.getElementById(tabId).classList.add('active');
-        event.currentTarget.classList.add('active');
-    }
-
-    async function loadAdminStats() {
-        const { count } = await supabaseClient.from('profiles').select('*', { count: 'exact', head: true });
-        document.getElementById('stat-users').innerText = count;
-    }
-
-    // Запуск
     initApp();
 </script>
-
 </body>
-
 </html>
-
