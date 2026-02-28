@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qazaq Bux — Заработок в KZT</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent-color: #38bdf8;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --success: #22c55e;
+            --danger: #fb7185;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            margin: 0; padding: 0;
+            padding-bottom: 80px;
+        }
+
+        /* Header */
+        header {
+            padding: 20px;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border-bottom: 1px solid #334155;
+            text-align: center;
+        }
+
+        .balance-card {
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid var(--accent-color);
+            border-radius: 15px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+
+        .balance-amount {
+            font-size: 26px;
+            font-weight: bold;
+            color: var(--success);
+        }
+
+        /* Tabs & Navigation */
+        .tab-content { display: none; animation: fadeIn 0.3s ease; }
+        .tab-content.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .categories { display: flex; overflow-x: auto; padding: 15px; gap: 10px; }
+        .cat-chip {
+            background: var(--card-bg);
+            padding: 8px 16px;
+            border-radius: 20px;
+            white-space: nowrap;
+            font-size: 13px;
+            border: 1px solid #334155;
+        }
+        .cat-chip.active { background: var(--accent-color); color: #000; }
+
+        /* Tasks */
+        .task-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 15px;
+            margin: 0 15px 12px 15px;
+            border: 1px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn-action {
+            background: var(--accent-color);
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            color: #000;
+            cursor: pointer;
+        }
+
+        /* Bottom Nav */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0; width: 100%;
+            background: #1e293b;
+            display: flex;
+            justify-content: space-around;
+            padding: 12px 0;
+            border-top: 1px solid #334155;
+        }
+
+        .nav-item { text-align: center; color: var(--text-dim); text-decoration: none; font-size: 12px; }
+        .nav-item.active { color: var(--accent-color); }
+        .nav-item i { font-size: 20px; display: block; margin-bottom: 4px; }
+
+        /* Admin Styles */
+        .admin-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 15px; }
+        .admin-stat-card { background: var(--card-bg); padding: 15px; border-radius: 10px; border-left: 4px solid var(--danger); }
+    </style>
+</head>
+<body>
+
+<header>
+    <div id="user-display-name">Загрузка...</div>
+    <div class="balance-card">
+        <div style="font-size: 12px; color: var(--text-dim);">Доступно к выводу</div>
+        <div class="balance-amount"><span id="user-balance">0.00</span> ₸</div>
+    </div>
+</header>
+
+<div id="worker-tab" class="tab-content active">
+    <div class="categories">
+        <div class="cat-chip active">Все задания</div>
+        <div class="cat-chip"><i class="fab fa-telegram"></i> Telegram</div>
+        <div class="cat-chip"><i class="fas fa-mouse-pointer"></i> Серфинг</div>
+    </div>
+    <div id="task-list">
+        <p style="text-align:center; color: var(--text-dim);">Поиск актуальных заданий...</p>
+    </div>
+</div>
+
+<div id="client-tab" class="tab-content">
+    <div style="padding: 20px;">
+        <h3>Создать рекламу</h3>
+        <div style="background: var(--card-bg); padding: 20px; border-radius: 15px; border: 1px solid #334155;">
+            <label style="font-size: 14px; color: var(--text-dim);">Ссылка на ресурс</label>
+            <input type="text" id="task-url" placeholder="https://t.me/..." style="width:100%; padding:12px; margin: 10px 0; border-radius:8px; border:1px solid #444; background:#0f172a; color:#fff;">
+            
+            <label style="font-size: 14px; color: var(--text-dim);">Цена за выполнение (₸)</label>
+            <input type="number" id="task-price" placeholder="Напр: 15" style="width:100%; padding:12px; margin: 10px 0; border-radius:8px; border:1px solid #444; background:#0f172a; color:#fff;">
+            
+            <button onclick="createTask()" class="btn-action" style="width: 100%; margin-top: 10px;">Запустить проект</button>
+        </div>
+    </div>
+</div>
+
+<div id="admin-tab" class="tab-content">
+    <div style="padding: 20px;">
+        <h3 style="color: var(--danger);">🛡️ Панель управления</h3>
+        <div class="admin-stat-grid">
+            <div class="admin-stat-card">
+                <small>Пользователей</small><div id="stat-users">...</div>
+            </div>
+            <div class="admin-stat-card">
+                <small>Комиссия (₸)</small><div id="stat-profit">0.00</div>
+            </div>
+        </div>
+        <button class="btn-action" style="background: var(--danger); width:100%;" onclick="alert('Выгрузка отчета...')">Скачать список выплат</button>
+    </div>
+</div>
+
+<nav class="bottom-nav">
+    <a href="#" class="nav-item active" onclick="switchTab(event, 'worker-tab')">
+        <i class="fas fa-coins"></i> Заработать
+    </a>
+    <a href="#" class="nav-item" onclick="switchTab(event, 'client-tab')">
+        <i class="fas fa-rocket"></i> Заказать
+    </a>
+    <a href="#" id="admin-nav" class="nav-item" style="display:none;" onclick="switchTab(event, 'admin-tab')">
+        <i class="fas fa-user-shield"></i> Админ
+    </a>
+</nav>
+
+<script>
+    // --- НАСТРОЙКИ SUPABASE ---
+    const SUPABASE_URL = 'lorbcqgghjlubhvzivwf'; 
+    const SUPABASE_KEY = 'sb_publishable_WnvQT4HqgYeNF4oG-m_n0g_0VhCFJjD';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+
+    async function initApp() {
+        const user = tg.initDataUnsafe.user;
+        if (!user) {
+            document.body.innerHTML = "<h2 style='color:white; text-align:center;'>Пожалуйста, откройте через Telegram</h2>";
+            return;
+        }
+
+        // 1. Авторизация / Регистрация
+        let { data: profile, error } = await supabaseClient
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+
+        if (!profile) {
+            const { data } = await supabaseClient
+                .from('profiles')
+                .insert([{ id: user.id, username: user.username, balance_kzt: 0 }])
+                .select().single();
+            profile = data;
+        }
+
+        // 2. Отображение данных
+        document.getElementById('user-display-name').innerText = profile.username || user.first_name;
+        document.getElementById('user-balance').innerText = profile.balance_kzt.toFixed(2);
+
+        if (profile.is_admin) {
+            document.getElementById('admin-nav').style.display = 'block';
+            loadAdminStats();
+        }
+
+        loadTasks();
+    }
+
+    async function loadTasks() {
+        const { data: tasks } = await supabaseClient.from('tasks').select('*').order('created_at', { ascending: false });
+        const container = document.getElementById('task-list');
+        container.innerHTML = '';
+
+        if (tasks && tasks.length > 0) {
+            tasks.forEach(task => {
+                container.innerHTML += `
+                    <div class="task-card">
+                        <div class="task-info">
+                            <h4 style="margin:0;">${task.title}</h4>
+                            <p style="margin:5px 0; font-size:12px; color:var(--text-dim);">${task.category}</p>
+                            <button class="btn-action" onclick="window.open('${task.link}')">Открыть</button>
+                        </div>
+                        <div class="task-reward">+${task.reward_kzt} ₸</div>
+                    </div>
+                `;
+            });
+        } else {
+            container.innerHTML = '<p style="text-align:center; color:var(--text-dim);">Заданий пока нет</p>';
+        }
+    }
+
+    function switchTab(event, tabId) {
+        event.preventDefault();
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        event.currentTarget.classList.add('active');
+    }
+
+    async function loadAdminStats() {
+        const { count } = await supabaseClient.from('profiles').select('*', { count: 'exact', head: true });
+        document.getElementById('stat-users').innerText = count;
+    }
+
+    // Запуск
+    initApp();
+</script>
+
+</body>
+</html>
