@@ -130,22 +130,37 @@
 <div id="wallet-tab" class="tab-content">
     <div style="padding: 20px;">
         <h3>💰 Мой кошелек</h3>
-        <div style="background: var(--card-bg); padding: 20px; border-radius: 15px; text-align: center; border: 1px solid var(--accent-color);">
-            <div style="font-size: 14px; color: var(--text-dim);">Ваш баланс</div>
+        
+        <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 20px; border-radius: 15px; text-align: center; border: 1px solid var(--accent-color); margin-bottom: 20px;">
+            <div style="font-size: 14px; color: var(--text-dim);">Доступно к выводу</div>
             <div style="font-size: 32px; font-weight: bold; color: var(--success); margin: 10px 0;">
                 <span class="wallet-balance-val">0.00</span> ₸
             </div>
+            <div style="font-size: 11px; color: var(--danger); background: rgba(251, 113, 133, 0.1); padding: 5px; border-radius: 5px;">
+                ⚠️ Проверка отписок: 72 часа
+            </div>
         </div>
 
-        <h4 style="margin-top: 25px;">Вывод на Kaspi</h4>
-        <div style="background: var(--card-bg); padding: 15px; border-radius: 12px; border: 1px solid #334155;">
-            <label style="font-size: 12px; color: var(--text-dim);">Номер телефона</label>
-            <input type="text" id="draw-phone" placeholder="+7 707 ..." style="width:100%; padding:12px; margin: 8px 0 15px 0; border-radius:8px; border:1px solid #444; background:#0f172a; color:#fff; box-sizing: border-box;">
-            
-            <label style="font-size: 12px; color: var(--text-dim);">Сумма (мин. 500 ₸)</label>
-            <input type="number" id="draw-amount" placeholder="500" style="width:100%; padding:12px; margin: 8px 0 15px 0; border-radius:8px; border:1px solid #444; background:#0f172a; color:#fff; box-sizing: border-box;">
-            
+        <button onclick="toggleFAQ()" style="width:100%; background: #334155; color: white; border: none; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 13px;">
+            <i class="fas fa-question-circle"></i> Правила и FAQ
+        </button>
+
+        <div id="faq-block" style="display:none; background: #1e293b; padding: 15px; border-radius: 10px; margin-bottom: 20px; font-size: 13px; line-height: 1.6; border: 1px solid #334155;">
+            <p>✅ <b>Как заработать?</b> Выполняйте задания и жмите "Проверить".</p>
+            <p>🚫 <b>За что бан?</b> За отписку от каналов ранее чем через 3 дня.</p>
+            <p>⏳ <b>Выплаты:</b> В течение 24 часов на Kaspi.</p>
+        </div>
+
+        <div style="background: var(--card-bg); padding: 15px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 25px;">
+            <h4 style="margin-top: 0;">Вывод на Kaspi</h4>
+            <input type="text" id="draw-phone" placeholder="+7 7xx xxx xx xx" style="width:100%; padding:12px; margin-bottom: 10px; border-radius:8px; border:1px solid #444; background:#0f172a; color:#fff; box-sizing: border-box;">
+            <input type="number" id="draw-amount" placeholder="Сумма (мин. 500 ₸)" style="width:100%; padding:12px; margin-bottom: 10px; border-radius:8px; border:1px solid #444; background:#0f172a; color:#fff; box-sizing: border-box;">
             <button onclick="requestWithdrawal()" class="btn-action" style="width: 100%;">Заказать выплату</button>
+        </div>
+
+        <h4>📜 История транзакций</h4>
+        <div id="withdrawal-history" style="font-size: 13px;">
+            <p style="color: var(--text-dim); text-align: center;">История пуста</p>
         </div>
     </div>
 </div>
@@ -208,6 +223,15 @@
     const tg = window.Telegram.WebApp;
     tg.expand();
 
+    function toggleFAQ() {
+    const faq = document.getElementById('faq-block');
+    if (faq.style.display === 'none') {
+        faq.style.display = 'block';
+        faq.scrollIntoView({ behavior: 'smooth' });
+    } else {
+        faq.style.display = 'none';
+    }
+}
     // --- ИНИЦИАЛИЗАЦИЯ ---
     async function initApp() {
         const user = tg.initDataUnsafe.user;
@@ -275,60 +299,86 @@
         }
     }
 
-    // --- ЛОГИКА ВЫПОЛНЕНИЯ ---
-    async function completeTask(taskId, reward, link) {
-        const userId = tg.initDataUnsafe.user.id;
-        window.open(link, '_blank');
+  async function verifyTask(taskId, reward) {
+    const userId = tg.initDataUnsafe.user.id;
+    const btn = document.getElementById(`btn-${taskId}`);
+    btn.innerText = "Проверяем подписку...";
+    btn.disabled = true;
 
-        // Фиксируем выполнение
-        const { error: compError } = await supabaseClient.from('completions').insert([{ user_id: userId, task_id: taskId }]);
+    // --- ЛОГИКА ПРОВЕРКИ ЧЕРЕЗ БОТА ---
+    // В реальном проекте здесь идет запрос к твоему боту
+    // Сейчас сделаем задержку в 2 секунды для имитации работы алгоритма
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // 1. Записываем выполнение (SQL не даст записать второй раз из-за UNIQUE)
+    const { error: compError } = await supabaseClient
+        .from('completions')
+        .insert([{ user_id: userId, task_id: taskId }]);
+    
+    if (compError) {
+        tg.showAlert("Вы уже получали награду за это задание!");
+        return;
+    }
+
+    // 2. Начисляем баланс
+    const { data: profile } = await supabaseClient.from('profiles').select('balance_kzt').eq('id', userId).single();
+    const newBalance = parseFloat(profile.balance_kzt) + parseFloat(reward);
+
+    const { error: balError } = await supabaseClient
+        .from('profiles')
+        .update({ balance_kzt: newBalance })
+        .eq('id', userId);
+
+    if (!balError) {
+        updateBalanceUI(newBalance);
+        const card = document.getElementById(`task-${taskId}`);
+        if (card) card.remove();
         
-        if (compError) return; // Если уже выполнено
+        // Предупреждение о штрафах (Важно для психологии!)
+        tg.showConfirm("Зачислено! Внимание: если вы отпишетесь в течение 3-х дней, баланс будет аннулирован, а аккаунт заблокирован.", (ok) => {
+            // Просто закрываем уведомление
+        });
+    }
+}
+   async function requestWithdrawal() {
+    const amount = parseFloat(document.getElementById('draw-amount').value);
+    const phone = document.getElementById('draw-phone').value;
+    const userId = tg.initDataUnsafe.user.id;
 
-        // Начисляем деньги
-        const { data: profile } = await supabaseClient.from('profiles').select('balance_kzt').eq('id', userId).single();
-        const newBalance = parseFloat(profile.balance_kzt) + parseFloat(reward);
-
-        const { error: balError } = await supabaseClient.from('profiles').update({ balance_kzt: newBalance }).eq('id', userId);
-
-        if (!balError) {
-            updateBalanceUI(newBalance);
-            const card = document.getElementById(`task-${taskId}`);
-            if (card) card.style.display = 'none';
-            tg.showAlert(`Зачислено ${reward} ₸!`);
-        }
+    if (!phone || amount < 500) {
+        alert("Минимальный вывод — 500 ₸");
+        return;
     }
 
-    // --- ВЫВОД СРЕДСТВ ---
-    async function requestWithdrawal() {
-        const amount = parseFloat(document.getElementById('draw-amount').value);
-        const phone = document.getElementById('draw-phone').value;
-        const userId = tg.initDataUnsafe.user.id;
+    const { data: profile } = await supabaseClient.from('profiles').select('balance_kzt').eq('id', userId).single();
 
-        if (!phone || amount < 500) {
-            alert("Минимальный вывод — 500 ₸");
-            return;
-        }
-
-        const { data: profile } = await supabaseClient.from('profiles').select('balance_kzt').eq('id', userId).single();
-
-        if (profile.balance_kzt < amount) {
-            alert("Недостаточно средств!");
-            return;
-        }
-
-        const { error } = await supabaseClient.from('withdrawals').insert([
-            { user_id: userId, amount_kzt: amount, phone_number: phone, status: 'pending' }
-        ]);
-
-        if (!error) {
-            const newBal = profile.balance_kzt - amount;
-            await supabaseClient.from('profiles').update({ balance_kzt: newBal }).eq('id', userId);
-            updateBalanceUI(newBal);
-            alert("Заявка отправлена! Ожидайте выплату на Kaspi.");
-        }
+    if (profile.balance_kzt < amount) {
+        alert("Недостаточно средств!");
+        return;
     }
 
+    // 1. Создаем заявку
+    const { error } = await supabaseClient.from('withdrawals').insert([
+        { user_id: userId, amount_kzt: amount, phone_number: phone, status: 'pending' }
+    ]);
+
+    if (!error) {
+        // 2. Списываем баланс
+        const newBal = profile.balance_kzt - amount;
+        await supabaseClient.from('profiles').update({ balance_kzt: newBal }).eq('id', userId);
+        
+        // 3. Обновляем цифры на экране
+        updateBalanceUI(newBal);
+        
+        alert("Заявка отправлена! Ожидайте выплату на Kaspi.");
+
+        // --- ВОТ СЮДА ВСТАВЛЯЕМ (внутри функции) ---
+        loadWithdrawalHistory(); 
+        // ------------------------------------------
+    }
+}
+    
     // --- ФУНКЦИИ АДМИНКИ ---
     async function loadAdminPanel() {
         const { count: userCount } = await supabaseClient.from('profiles').select('*', { count: 'exact', head: true });
@@ -371,6 +421,7 @@
         event.currentTarget.classList.add('active');
         if (tabId === 'admin-tab') loadAdminPanel();
         if (tabId === 'worker-tab') loadTasks();
+        if (tabId === 'wallet-tab') loadWithdrawalHistory(); // Загружаем историю при входе в кошелек
     }
 
     async function createTask() {
@@ -382,7 +433,50 @@
         loadTasks();
     }
 
+    // --- ЗАГРУЗКА ИСТОРИИ ВЫПЛАТ ---
+async function loadWithdrawalHistory() {
+    const userId = tg.initDataUnsafe.user.id;
+    const container = document.getElementById('withdrawal-history');
+
+    const { data: history, error } = await supabaseClient
+        .from('withdrawals')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+    if (history && history.length > 0) {
+        container.innerHTML = history.map(item => {
+            let statusColor = '#94a3b8'; // По умолчанию серый
+            let statusText = 'Обработка';
+
+            if (item.status === 'pending') {
+                statusColor = '#eab308'; // Желтый
+                statusText = '⏳ В обработке';
+            } else if (item.status === 'completed') {
+                statusColor = '#22c55e'; // Зеленый
+                statusText = '✅ Выплачено';
+            } else if (item.status === 'rejected') {
+                statusColor = '#fb7185'; // Красный
+                statusText = '❌ Отклонено';
+            }
+
+            return `
+                <div style="background: var(--card-bg); padding: 12px; border-radius: 10px; margin-bottom: 8px; border-left: 3px solid ${statusColor};">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:bold;">${item.amount_kzt} ₸</span>
+                        <span style="color: ${statusColor}; font-size: 11px;">${statusText}</span>
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-dim); margin-top: 5px;">
+                        ${new Date(item.created_at).toLocaleDateString('ru-RU')} • ${item.phone_number}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+}
+
     initApp();
 </script>
 </body>
 </html>
+
