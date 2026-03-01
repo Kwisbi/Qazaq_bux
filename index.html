@@ -72,7 +72,6 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            transition: 0.3s;
         }
 
         .btn-action {
@@ -83,7 +82,10 @@
             font-weight: bold;
             color: #000;
             cursor: pointer;
+            transition: 0.2s;
         }
+
+        .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .bottom-nav {
             position: fixed;
@@ -130,7 +132,6 @@
 <div id="wallet-tab" class="tab-content">
     <div style="padding: 20px;">
         <h3>💰 Мой кошелек</h3>
-        
         <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 20px; border-radius: 15px; text-align: center; border: 1px solid var(--accent-color); margin-bottom: 20px;">
             <div style="font-size: 14px; color: var(--text-dim);">Доступно к выводу</div>
             <div style="font-size: 32px; font-weight: bold; color: var(--success); margin: 10px 0;">
@@ -146,9 +147,10 @@
         </button>
 
         <div id="faq-block" style="display:none; background: #1e293b; padding: 15px; border-radius: 10px; margin-bottom: 20px; font-size: 13px; line-height: 1.6; border: 1px solid #334155;">
-            <p>✅ <b>Как заработать?</b> Выполняйте задания и жмите "Проверить".</p>
+            <p>✅ <b>Как заработать?</b> Выполните задание и нажмите "Проверить".</p>
             <p>🚫 <b>За что бан?</b> За отписку от каналов ранее чем через 3 дня.</p>
             <p>⏳ <b>Выплаты:</b> В течение 24 часов на Kaspi.</p>
+            <p>❌ <b>Минимум:</b> 500 ₸.</p>
         </div>
 
         <div style="background: var(--card-bg); padding: 15px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 25px;">
@@ -160,22 +162,24 @@
 
         <h4>📜 История транзакций</h4>
         <div id="withdrawal-history" style="font-size: 13px;">
-            <p style="color: var(--text-dim); text-align: center;">История пуста</p>
+            <p style="color: var(--text-dim); text-align: center;">Загрузка истории...</p>
         </div>
     </div>
 </div>
 
 <div id="client-tab" class="tab-content">
     <div style="padding: 20px;">
-        <h3>Создать рекламу</h3>
+        <h3>🚀 Рекламный кабинет</h3>
         <div style="background: var(--card-bg); padding: 20px; border-radius: 15px; border: 1px solid #334155;">
-            <label style="font-size: 14px; color: var(--text-dim);">Ссылка на ресурс</label>
+            <h4 style="margin-top:0;">Создать задание</h4>
+            <label style="font-size: 14px; color: var(--text-dim);">Ссылка на канал/сайт</label>
             <input type="text" id="task-url" placeholder="https://t.me/..." style="width:100%; padding:12px; margin: 10px 0; border-radius:8px; border:1px solid #444; background:#0f172a; color:#fff; box-sizing: border-box;">
             
             <label style="font-size: 14px; color: var(--text-dim);">Цена за выполнение (₸)</label>
             <input type="number" id="task-price" placeholder="Напр: 15" style="width:100%; padding:12px; margin: 10px 0; border-radius:8px; border:1px solid #444; background:#0f172a; color:#fff; box-sizing: border-box;">
             
-            <button onclick="createTask()" class="btn-action" style="width: 100%; margin-top: 10px;">Запустить проект</button>
+            <p style="font-size: 11px; color: var(--text-dim); margin-bottom: 15px;">* Средства списываются с вашего баланса.</p>
+            <button onclick="createTask()" class="btn-action" style="width: 100%;">Запустить проект</button>
         </div>
     </div>
 </div>
@@ -185,14 +189,16 @@
         <h3 style="color: var(--danger);">🛡️ Панель управления</h3>
         <div class="admin-stat-grid">
             <div class="admin-stat-card">
-                <small>Пользователей</small><div id="stat-users" style="font-size: 20px; font-weight: bold;">...</div>
+                <small>Пользователей</small>
+                <div id="stat-users" style="font-size: 20px; font-weight: bold;">...</div>
             </div>
             <div class="admin-stat-card">
-                <small>Оборот системы</small><div id="stat-profit" style="font-size: 20px; font-weight: bold;">0 ₸</div>
+                <small>В ожидании</small>
+                <div id="stat-pending" style="font-size: 20px; font-weight: bold;">0</div>
             </div>
         </div>
         
-        <h4>Заявки на вывод (Pending)</h4>
+        <h4>Заявки на вывод</h4>
         <div id="withdrawal-requests">
             <p style="color: var(--text-dim);">Загрузка заявок...</p>
         </div>
@@ -215,33 +221,27 @@
 </nav>
 
 <script>
-    // --- НАСТРОЙКИ SUPABASE ---
+    // 1. КОНФИГ
     const SUPABASE_URL = 'https://lorbcqgghjlubhvzivwf.supabase.co'; 
     const SUPABASE_KEY = 'sb_publishable_WnvQT4HqgYeNF4oG-m_n0g_0VhCFJjD';
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
     const tg = window.Telegram.WebApp;
     tg.expand();
 
     function toggleFAQ() {
-    const faq = document.getElementById('faq-block');
-    if (faq.style.display === 'none') {
-        faq.style.display = 'block';
-        faq.scrollIntoView({ behavior: 'smooth' });
-    } else {
-        faq.style.display = 'none';
+        const faq = document.getElementById('faq-block');
+        faq.style.display = (faq.style.display === 'none') ? 'block' : 'none';
     }
-}
-    // --- ИНИЦИАЛИЗАЦИЯ ---
+
+    // 2. ИНИЦИАЛИЗАЦИЯ
     async function initApp() {
         const user = tg.initDataUnsafe.user;
         if (!user) {
-            document.body.innerHTML = "<h2 style='color:white; text-align:center; padding-top:50px;'>Зайдите через Telegram</h2>";
+            document.body.innerHTML = "<h2 style='color:white; text-align:center; padding-top:50px;'>Открыть в Telegram</h2>";
             return;
         }
 
         let { data: profile } = await supabaseClient.from('profiles').select('*').eq('id', user.id).single();
-
         if (!profile) {
             const { data } = await supabaseClient.from('profiles').insert([{ id: user.id, username: user.username || user.first_name, balance_kzt: 0 }]).select().single();
             profile = data;
@@ -249,10 +249,7 @@
 
         document.getElementById('user-display-name').innerText = profile.username;
         updateBalanceUI(profile.balance_kzt);
-
-        if (profile.is_admin) {
-            document.getElementById('admin-nav').style.display = 'block';
-        }
+        if (profile.is_admin) document.getElementById('admin-nav').style.display = 'block';
 
         loadTasks();
     }
@@ -263,19 +260,14 @@
         document.querySelectorAll('.wallet-balance-val').forEach(el => el.innerText = val);
     }
 
-    // --- ЗАГРУЗКА ЗАДАНИЙ С ФИЛЬТРОМ ---
+    // 3. ЛОГИКА ЗАДАНИЙ (ИСПРАВЛЕННАЯ)
     async function loadTasks() {
         const userId = tg.initDataUnsafe.user.id;
-        
-        // 1. Получаем ID выполненных
         const { data: doneTasks } = await supabaseClient.from('completions').select('task_id').eq('user_id', userId);
         const doneIds = doneTasks ? doneTasks.map(item => item.task_id) : [];
 
-        // 2. Получаем все задачи
         let query = supabaseClient.from('tasks').select('*');
-        if (doneIds.length > 0) {
-            query = query.not('id', 'in', `(${doneIds.join(',')})`);
-        }
+        if (doneIds.length > 0) query = query.not('id', 'in', `(${doneIds.join(',')})`);
 
         const { data: tasks } = await query.order('created_at', { ascending: false });
         const container = document.getElementById('task-list');
@@ -285,198 +277,167 @@
             tasks.forEach(task => {
                 container.innerHTML += `
                     <div class="task-card" id="task-${task.id}">
-                        <div class="task-info">
+                        <div style="padding-right:10px;">
                             <h4 style="margin:0;">${task.title}</h4>
                             <p style="margin:5px 0; font-size:12px; color:var(--text-dim);">${task.category}</p>
-                            <button class="btn-action" onclick="completeTask('${task.id}', ${task.reward_kzt}, '${task.link}')">Выполнить</button>
+                            <button class="btn-action" id="btn-${task.id}" onclick="startTask('${task.id}', '${task.link}', ${task.reward_kzt})">Выполнить</button>
                         </div>
-                        <div class="task-reward">+${task.reward_kzt} ₸</div>
+                        <div style="color:var(--success); font-weight:bold;">+${task.reward_kzt} ₸</div>
                     </div>
                 `;
             });
         } else {
-            container.innerHTML = '<p style="text-align:center; color:var(--text-dim); padding: 20px;">Заданий пока нет. Зайдите позже!</p>';
+            container.innerHTML = '<p style="text-align:center; color:var(--text-dim); padding:20px;">Заданий пока нет</p>';
         }
     }
 
-  async function verifyTask(taskId, reward) {
-    const userId = tg.initDataUnsafe.user.id;
-    const btn = document.getElementById(`btn-${taskId}`);
-    btn.innerText = "Проверяем подписку...";
-    btn.disabled = true;
-
-    // --- ЛОГИКА ПРОВЕРКИ ЧЕРЕЗ БОТА ---
-    // В реальном проекте здесь идет запрос к твоему боту
-    // Сейчас сделаем задержку в 2 секунды для имитации работы алгоритма
-    
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // 1. Записываем выполнение (SQL не даст записать второй раз из-за UNIQUE)
-    const { error: compError } = await supabaseClient
-        .from('completions')
-        .insert([{ user_id: userId, task_id: taskId }]);
-    
-    if (compError) {
-        tg.showAlert("Вы уже получали награду за это задание!");
-        return;
+    function startTask(taskId, link, reward) {
+        window.open(link, '_blank');
+        const btn = document.getElementById(`btn-${taskId}`);
+        if (btn) {
+            btn.innerText = "Проверить";
+            btn.style.background = "#22c55e";
+            btn.setAttribute("onclick", `verifyTask('${taskId}', ${reward})`);
+        }
+        tg.showAlert("Выполните и вернитесь для проверки!");
     }
 
-    // 2. Начисляем баланс
-    const { data: profile } = await supabaseClient.from('profiles').select('balance_kzt').eq('id', userId).single();
-    const newBalance = parseFloat(profile.balance_kzt) + parseFloat(reward);
+    async function verifyTask(taskId, reward) {
+        const userId = tg.initDataUnsafe.user.id;
+        const btn = document.getElementById(`btn-${taskId}`);
+        btn.innerText = "Проверка...";
+        btn.disabled = true;
 
-    const { error: balError } = await supabaseClient
-        .from('profiles')
-        .update({ balance_kzt: newBalance })
-        .eq('id', userId);
+        await new Promise(r => setTimeout(r, 2000)); // Имитация проверки
 
-    if (!balError) {
+        const { error: compError } = await supabaseClient.from('completions').insert([{ user_id: userId, task_id: taskId }]);
+        if (compError) {
+            tg.showAlert("Ошибка или уже выполнено");
+            return;
+        }
+
+        const { data: profile } = await supabaseClient.from('profiles').select('balance_kzt').eq('id', userId).single();
+        const newBalance = parseFloat(profile.balance_kzt) + parseFloat(reward);
+        await supabaseClient.from('profiles').update({ balance_kzt: newBalance }).eq('id', userId);
+
         updateBalanceUI(newBalance);
-        const card = document.getElementById(`task-${taskId}`);
-        if (card) card.remove();
+        document.getElementById(`task-${taskId}`).remove();
+        tg.showAlert(`Успешно! +${reward} ₸`);
+    }
+
+    // 4. ВЫВОД И ИСТОРИЯ
+    async function requestWithdrawal() {
+        const amount = parseFloat(document.getElementById('draw-amount').value);
+        const phone = document.getElementById('draw-phone').value;
+        const userId = tg.initDataUnsafe.user.id;
+
+        if (!phone || amount < 500) { alert("Минимум 500 ₸"); return; }
+        const { data: profile } = await supabaseClient.from('profiles').select('balance_kzt').eq('id', userId).single();
         
-        // Предупреждение о штрафах (Важно для психологии!)
-        tg.showConfirm("Зачислено! Внимание: если вы отпишетесь в течение 3-х дней, баланс будет аннулирован, а аккаунт заблокирован.", (ok) => {
-            // Просто закрываем уведомление
-        });
-    }
-}
-   async function requestWithdrawal() {
-    const amount = parseFloat(document.getElementById('draw-amount').value);
-    const phone = document.getElementById('draw-phone').value;
-    const userId = tg.initDataUnsafe.user.id;
+        if (profile.balance_kzt < amount) { alert("Недостаточно средств"); return; }
 
-    if (!phone || amount < 500) {
-        alert("Минимальный вывод — 500 ₸");
-        return;
-    }
-
-    const { data: profile } = await supabaseClient.from('profiles').select('balance_kzt').eq('id', userId).single();
-
-    if (profile.balance_kzt < amount) {
-        alert("Недостаточно средств!");
-        return;
-    }
-
-    // 1. Создаем заявку
-    const { error } = await supabaseClient.from('withdrawals').insert([
-        { user_id: userId, amount_kzt: amount, phone_number: phone, status: 'pending' }
-    ]);
-
-    if (!error) {
-        // 2. Списываем баланс
-        const newBal = profile.balance_kzt - amount;
-        await supabaseClient.from('profiles').update({ balance_kzt: newBal }).eq('id', userId);
+        const { error } = await supabaseClient.from('withdrawals').insert([{ user_id: userId, amount_kzt: amount, phone_number: phone, status: 'pending' }]);
         
-        // 3. Обновляем цифры на экране
-        updateBalanceUI(newBal);
-        
-        alert("Заявка отправлена! Ожидайте выплату на Kaspi.");
-
-        // --- ВОТ СЮДА ВСТАВЛЯЕМ (внутри функции) ---
-        loadWithdrawalHistory(); 
-        // ------------------------------------------
+        if (!error) {
+            const newBal = profile.balance_kzt - amount;
+            await supabaseClient.from('profiles').update({ balance_kzt: newBal }).eq('id', userId);
+            updateBalanceUI(newBal);
+            loadWithdrawalHistory();
+            alert("Заявка отправлена!");
+        }
     }
-}
-    
-    // --- ФУНКЦИИ АДМИНКИ ---
+
+    async function loadWithdrawalHistory() {
+        const userId = tg.initDataUnsafe.user.id;
+        const { data: history } = await supabaseClient.from('withdrawals').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+        const container = document.getElementById('withdrawal-history');
+        
+        if (history && history.length > 0) {
+            container.innerHTML = history.map(item => {
+                let color = item.status === 'completed' ? '#22c55e' : (item.status === 'rejected' ? '#fb7185' : '#eab308');
+                return `
+                    <div style="background:var(--card-bg); padding:12px; border-radius:10px; margin-bottom:8px; border-left:4px solid ${color};">
+                        <div style="display:flex; justify-content:space-between;">
+                            <b>${item.amount_kzt} ₸</b>
+                            <span style="font-size:11px; color:${color}">${item.status.toUpperCase()}</span>
+                        </div>
+                        <small style="color:var(--text-dim)">${new Date(item.created_at).toLocaleDateString()} • ${item.phone_number}</small>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            container.innerHTML = '<p style="text-align:center; color:var(--text-dim);">История пуста</p>';
+        }
+    }
+
+    // 5. РЕКЛАМА И АДМИНКА
+    async function createTask() {
+        const url = document.getElementById('task-url').value;
+        const price = parseFloat(document.getElementById('task-price').value);
+        const userId = tg.initDataUnsafe.user.id;
+
+        if (!url || !price) { alert('Заполните все поля!'); return; }
+
+        const { data: profile } = await supabaseClient.from('profiles').select('balance_kzt').eq('id', userId).single();
+        if (profile.balance_kzt < price) { alert('Недостаточно средств на балансе!'); return; }
+
+        const { error: taskError } = await supabaseClient.from('tasks').insert([{ title: 'Подписка TG', category: 'Telegram', reward_kzt: price, link: url }]);
+        if (!taskError) {
+            const newBal = profile.balance_kzt - price;
+            await supabaseClient.from('profiles').update({ balance_kzt: newBal }).eq('id', userId);
+            updateBalanceUI(newBal);
+            alert('Задание успешно создано!');
+            loadTasks();
+        }
+    }
+
     async function loadAdminPanel() {
         const { count: userCount } = await supabaseClient.from('profiles').select('*', { count: 'exact', head: true });
         document.getElementById('stat-users').innerText = userCount || 0;
 
-        const { data: requests } = await supabaseClient.from('withdrawals').select(`*, profiles(username)`).eq('status', 'pending');
+        const { data: requests } = await supabaseClient.from('withdrawals').select('*, profiles(username)').eq('status', 'pending');
+        document.getElementById('stat-pending').innerText = requests ? requests.length : 0;
+        
         const container = document.getElementById('withdrawal-requests');
         container.innerHTML = '';
 
         if (requests && requests.length > 0) {
             requests.forEach(req => {
                 container.innerHTML += `
-                    <div style="background: var(--card-bg); padding: 15px; border-radius: 12px; margin-bottom: 12px; border: 1px solid #334155;">
+                    <div style="background: var(--card-bg); padding:15px; border-radius:12px; margin-bottom:10px; border:1px solid #334155;">
                         <div style="display:flex; justify-content:space-between;">
-                            <span>${req.profiles?.username}</span>
-                            <span style="color: var(--success); font-weight:bold;">${req.amount_kzt} ₸</span>
+                            <span>${req.profiles?.username || 'User'}</span>
+                            <b style="color:var(--success);">${req.amount_kzt} ₸</b>
                         </div>
-                        <div style="color: var(--accent-color); margin: 8px 0;">${req.phone_number}</div>
-                        <button class="btn-action" style="width:100%; background: var(--success); color:white;" onclick="approveWithdrawal('${req.id}')">Подтвердить</button>
+                        <div style="color:var(--accent-color); font-size:14px; margin:5px 0;">${req.phone_number}</div>
+                        <button class="btn-action" style="width:100%; background:var(--success); color:white;" onclick="approveWithdrawal('${req.id}')">Подтвердить выплату</button>
                     </div>
                 `;
             });
         } else {
-            container.innerHTML = '<div style="text-align:center; color: var(--text-dim);">Заявок нет</div>';
+            container.innerHTML = '<p style="text-align:center; color:var(--text-dim);">Новых заявок нет</p>';
         }
     }
 
     async function approveWithdrawal(id) {
-        if(!confirm("Вы отправили деньги на Kaspi?")) return;
-        await supabaseClient.from('withdrawals').update({ status: 'completed' }).eq('id', id);
-        loadAdminPanel();
+        if (!confirm("Вы отправили деньги на Kaspi?")) return;
+        const { error } = await supabaseClient.from('withdrawals').update({ status: 'completed' }).eq('id', id);
+        if (!error) loadAdminPanel();
     }
 
-    // --- ОБЩИЕ ФУНКЦИИ ---
     function switchTab(event, tabId) {
         event.preventDefault();
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         document.getElementById(tabId).classList.add('active');
         event.currentTarget.classList.add('active');
-        if (tabId === 'admin-tab') loadAdminPanel();
+        
         if (tabId === 'worker-tab') loadTasks();
-        if (tabId === 'wallet-tab') loadWithdrawalHistory(); // Загружаем историю при входе в кошелек
+        if (tabId === 'wallet-tab') loadWithdrawalHistory();
+        if (tabId === 'admin-tab') loadAdminPanel();
     }
-
-    async function createTask() {
-        const url = document.getElementById('task-url').value;
-        const price = document.getElementById('task-price').value;
-        if (!url || !price) { alert('Заполни поля!'); return; }
-        await supabaseClient.from('tasks').insert([{ title: 'Подписка TG', category: 'Telegram', reward_kzt: parseFloat(price), link: url }]);
-        alert('Задание запущено!');
-        loadTasks();
-    }
-
-    // --- ЗАГРУЗКА ИСТОРИИ ВЫПЛАТ ---
-async function loadWithdrawalHistory() {
-    const userId = tg.initDataUnsafe.user.id;
-    const container = document.getElementById('withdrawal-history');
-
-    const { data: history, error } = await supabaseClient
-        .from('withdrawals')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-    if (history && history.length > 0) {
-        container.innerHTML = history.map(item => {
-            let statusColor = '#94a3b8'; // По умолчанию серый
-            let statusText = 'Обработка';
-
-            if (item.status === 'pending') {
-                statusColor = '#eab308'; // Желтый
-                statusText = '⏳ В обработке';
-            } else if (item.status === 'completed') {
-                statusColor = '#22c55e'; // Зеленый
-                statusText = '✅ Выплачено';
-            } else if (item.status === 'rejected') {
-                statusColor = '#fb7185'; // Красный
-                statusText = '❌ Отклонено';
-            }
-
-            return `
-                <div style="background: var(--card-bg); padding: 12px; border-radius: 10px; margin-bottom: 8px; border-left: 3px solid ${statusColor};">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-weight:bold;">${item.amount_kzt} ₸</span>
-                        <span style="color: ${statusColor}; font-size: 11px;">${statusText}</span>
-                    </div>
-                    <div style="font-size: 11px; color: var(--text-dim); margin-top: 5px;">
-                        ${new Date(item.created_at).toLocaleDateString('ru-RU')} • ${item.phone_number}
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-}
 
     initApp();
 </script>
 </body>
 </html>
-
